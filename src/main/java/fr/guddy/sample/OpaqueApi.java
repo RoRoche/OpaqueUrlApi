@@ -22,11 +22,6 @@ public final class OpaqueApi {
                                 ctx ->
                                         ctx.result(String.format("Hello %s", ctx.pathParam("user")))
                         )
-                        .post(
-                                "/room",
-                                ctx ->
-                                        ctx.result("OK")
-                        )
                         .exception(DecryptUrlException.class, (e, ctx) -> ctx.status(403)),
                 port
         );

@@ -119,7 +119,12 @@ public final class AesDecryptCipher implements EncryptionCipher {
 
 Here I use the decorator pattern to ease the configuration of my objects.
 
-TODO
+TODO:
+- ciphered strings
+- Referer cooking
+- redirection concerns
+- handler and URL checking
+- unit tests
 
 ## Improvements
 
