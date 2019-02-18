@@ -5,7 +5,7 @@
 
 ## Requirements
 
-As front-end developer (mobile and Web), I'm used to consuming REST API. Smart libraries like Retrofit  (Android), Unirest (Java) and Axios (JavsScript) allow me to do so simply, neatly, and easily. All is neat, easy to set up and use. The only criterion that remains is security. Indeed, what if a bad guy is sniffing network calls (with Wireshark for a exemple). He will see the calls I make, with URLs and REST contract cleary visible and understable.
+As front-end developer (mobile and Web), I'm used to consuming REST API. Smart libraries like Retrofit  (Android), Unirest (Java) and Axios (JavsScript) allow me to do so simply, neatly, and easily. All is neat, easy to set up and use. The only criterion that remains is security. Indeed, if a bad guy is sniffing network calls (with Wireshark, for example), he will see the calls I make, with the URLs and the REST contract clearly visible and understandable.
 So to prevent myself for it, I need a little bit more complexity. It's impossible to hide everything, but we can make it digusting to understand.
 
 ## Concepts
