@@ -10,7 +10,7 @@ To prevent this, I need to add a bit more complexity. While it's impossible to h
 
 ## Concepts
 
-The API base URL can't be touched. But we can cipher the path and parameters with a symmetric technique. Both front-end and back-end will share the secret key to build the "opaque" URL. The client will collect all the data to build its request. Once the clear URL is ready, the client encrypt it and perform is final call.
+The API base URL can't be touched. But we can cipher the path and parameters with a symmetric technique. Both front-end and back-end will share the secret key to build the "opaque" URL. The client will collect all the data to build its request. Once the plaintext URL is ready, the client encrypt it and perform is final call.
 Back-end side, when receiving the request, a pre-execution hook is performed to check the URL. It gets the path and try to decrypt it the way it knows, if anything goes wrong, it throws an exception. If the URL can be reverted, it redirects the call to the suitable endpoint.
 
 ## Implementation
