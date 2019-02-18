@@ -5,17 +5,17 @@
 
 ## Requirements
 
-As front-end developer (mobile and Web), I'm used to consuming REST API. Smart libraries like Retrofit  (Android), Unirest (Java) and Axios (JavsScript) allow me to do so simply, neatly, and easily. All is neat, easy to set up and use. The only criterion that remains is security. Indeed, if a bad guy is sniffing network calls (with Wireshark, for example), he will see the calls I make, with the URLs and the REST contract clearly visible and understandable.
+As front-end developer (mobile and Web), I'm used to consuming REST API. Smart libraries like Retrofit  (Android), Unirest (Java) and Axios (JavsScript) allow me to do so simply, neatly, and easily. All is neat, easy to set up and use. The only criterion that remains is security. Indeed, if a bad guy is sniffing network calls (with Wireshark, for example), he can see the calls I make, with the URLs and the REST contract clearly visible and understandable.
 To prevent this, I need to add a bit more complexity. While it's impossible to hide everything, we can make it much more difficult to understand.
 
 ## Concepts
 
-The API base URL can't be touched. But we can cipher the path and parameters with a symmetric technique. Both front-end and back-end will share the secret key to build the "opaque" URL. The client will collect all the data to build its request. Once the plaintext URL is ready, the client can encrypt it and perform the call.
-Back-end side, when receiving the request, a pre-execution hook is performed to check the URL. It gets the path and try to decrypt it the way it knows, if anything goes wrong, it throws an exception. If the URL can be reverted, it redirects the call to the suitable endpoint.
+The API base URL can't be touched. But we can cipher the path and parameters with a symmetric technique. Both front-end and back-end share the secret key to build the "opaque" URL. The client collects all the data to build its request. Once the plaintext URL is ready, the client can encrypt it and perform the call.
+When the back-end receives the call, a pre-execution hook is called to decrypt the URL. If the decryption fails (for example the URL was encrypted with the wrong key), it throws an exception. Otherwise, the call is redirected to the proper endpoint.
 
 ## Implementation
 
-To build my back-end, I'm going to set-up a Java/Gradle-based stack. As a Web framework, I will choose Javalin (lightweight, easy to use and efficient). It has convenient and easy-to-use ["before handlers"](https://javalin.io/documentation#before-handlers). About ciphering concerns, I'm going to use Apache Commons Codec. And for a bit of convenience, I'll use the functionnal-driven library called vavr (I really love its Try API to focus on a specific pro tip). Here is a piece of my `build.gradle`:
+To build my back-end, I set-up a Java/Gradle-based stack. I chose the Javalin Web framework because it's lightweight, easy to use and efficient. It also has convenient and easy-to-use ["before handlers"](https://javalin.io/documentation#before-handlers). To manage encoded URLs, I use the Apache Commons Codec library. For a bit of convenience, I use the Vavr library. I really love its [Try API](https://www.vavr.io/vavr-docs/#_try). Here are the dependencies in my `build.gradle`:
 
 ```groovy
 dependencies {
@@ -39,9 +39,9 @@ Javalin.create()
 
 ## Ciphering concerns
 
-Next steps are the following:
+In order to define ciphering portions, we need to:
 
-1. Define passphrase, i.e. the secret to use to encrypt and decrypt URL (see `Passphrase` interface and its `DefaultPassphrase` implementation), here is an example:
+1. define a passphrase, i.e. the secret to use to encrypt and decrypt URL (see `Passphrase` interface and its `DefaultPassphrase` implementation):
 
 ```java
 public final class DefaultPassphrase implements Passphrase {
@@ -52,7 +52,7 @@ public final class DefaultPassphrase implements Passphrase {
 }
 ```
 
-2. Defined the way to build `java.security.Key`, here is a short example:
+2. define the way to build `java.security.Key`:
 
 ```java
 @Override
@@ -60,14 +60,16 @@ public Key key() {
     final MessageDigest digester = Try.of(() ->
         MessageDigest.getInstance("SHA-256")
     ).get();
-    Try.run(() -> digester.update(String.valueOf(password.value()).getBytes(Charsets.UTF_8.name())));
+    Try.run(() -> 
+        digester.update(String.valueOf(password.value()).getBytes(Charsets.UTF_8.name()))
+    );
     final byte[] key = digester.digest();
     return new SecretKeySpec(key, "AES");
 }
 ```
 
-3. Set-up a `Cipher` instance to encrypt and decrypt URL (see `EncryptionCipher` interface and its `AesCipher` implementations ; last implementation is decorated by `AesEncryptCipher` for encryption and `AesDecryptCipher` for decryption)
-4. Define the way `String`s are going to be encrypted in the application (see `PlainText` interface and its `Base64PlainText` implementation), here is an example:
+3. set-up a `Cipher` instance to encrypt and decrypt the URL (see `EncryptionCipher` interface and its `AesCipher` implementations; the latter is decorated by `AesEncryptCipher` for encryption and `AesDecryptCipher` for decryption)
+4. define the way `String`s are going to be encoded in the application (see `PlainText` interface and its `Base64PlainText` implementation):
 
 ```java
 public final class Base64PlainText implements PlainText {
@@ -81,7 +83,7 @@ public final class Base64PlainText implements PlainText {
 }
 ```
 
-5. Define the reverse operation to decrypt a `String` (see `Secret` interface and its `Base64Secret` implementation), here is an example:
+5. define the reverse operation to decrypt a `String` (see `Secret` interface and its `Base64Secret` implementation):
 
 ```java
 public final class Base64Secret implements Secret {
@@ -97,7 +99,7 @@ public final class Base64Secret implements Secret {
 
 ## Redirection concerns
 
-The main idea is the REST consumer build the URL using secret mechanism, then calls it with something that may look like `https://{host}/{secret}`. To keep it simple, our API defines all routes in the traditional way, such as:
+The REST consumer builds the URL using the secret mechanism, then calls it with something that looks like `https://{host}/{secret}`. Our API then defines all routes in the traditional way:
 
 ```java
 Javalin.create()
@@ -108,19 +110,19 @@ Javalin.create()
 )
 ```
 
-When receiving a call to a secret path, the API has to resolve it (i.e., determine the clear call behind it) and redirect call to the proper URL. To do so, it enough to call `Context::redirect(String)` with Javalin API.
+When receiving a call to a secret path, the API has to resolve it (i.e., determine the plaintext call behind it) and redirect call to the proper URL. To do so, we simply call Javalin's `Context::redirect(String)`.
 
-### Referrer cooking
+### Referrer cookie
 
-But I need to keep a trace, i.e. when catching a call to a clear resource, does it come from my redirection concern, or from usual call?
-So I decided to have a cookie, which will act as a witness of my previous opaque call. It named it "referrer".
+I need to determine if my call comes the decryption mechanism or a direct call.
+To do so, I use a "referrer" cookie, which acts as a witness of my previous opaque call.
 
 ### Handler and URL checking
 
-To put it all together, I need to specify a handler in javalin configuration.
-This handler will catch every call to the API.
-If a referrer cookie is present, it will check its validity (if the actual URI is matching the decrypted original URI).
-If there is no referrer cookie, it will try to decrypt the URI: if it succeeds, it redirects the call, or else it throws a dedicated exception.
+To put it all together, I specified a handler in Javalin's configuration.
+This handler catches every call to the API.
+If a referrer cookie is present, it checks its validity (if the actual URI matches the decrypted original URI) and redirects to the plain call.
+If there is no referrer cookie, it tries to decrypt the URI: if it succeeds, it redirects the call, or else it throws a dedicated exception.
 Here is the logic:
 
 ```java
@@ -161,31 +163,13 @@ public final class OpaqueUrlRedirection implements Redirection {
 }
 ```
 
-The fact to change the context's status (here with the 403 HTTP status code) is sufficient to stop the call.
+Changing the context's status (with the 403 HTTP status code) is sufficient to stop the call.
 
 ## Unit tests
 
-Now comes the time to validate (sorry, no pure TDD here) the whole things.
+To perform the requests, I use [unirest](http://unirest.io/) as a REST Java client.
 
-First I need a workaround test to get my ciphered URL for the call I want to test. Here is how I get it:
-
-```java
-@Test
-public void encrypt() {
-    assertThat(
-            new Base64PlainText(
-                    "greetings/Romain",
-                    new AesEncryptCipher(new AesSha256Key(new DefaultPassphrase()))
-            ).secret()
-    ).isEqualToIgnoringCase("LZ1Cndg8ikOegxY6sVPFzaKpKv7domLvmMQHpc7Cbo0");
-}
-```
-
-Here I use the default passphrase of the application. The first time I run my test, I don't have the ciphered value. It's when I've ran it once that I can get it and update my test.
-
-Now I want to perform the request. To achieve this point, I use [unirest](http://unirest.io/) as a REST Java client.
-
-I have to configure my test to start/stop the API, as follows:
+I configure my test to start/stop the API, as follows:
 
 ```java
 private final AesSha256Key key = new AesSha256Key(new DefaultPassphrase());
@@ -217,7 +201,7 @@ public void testKoNotOpaque() throws UnirestException {
 
 @Test
 public void testKoOpaqueButUnknown() throws UnirestException {
-    final String encodedPath = new Base64PlainText("hello/Romain", encryptCipher).secret();
+    final String encodedPath = new Base64PlainText("hello/Romain", encryptCipher).secret(); // "hello" instead of "greetings"
     final String url = String.format("http://localhost:7000/%s", encodedPath);
     final HttpResponse<String> resp = Unirest.get(url).asString();
     assertThat(resp.getStatus()).isEqualTo(404);
@@ -233,10 +217,9 @@ public void testOk() throws UnirestException {
 }
 ```
 
-This validates all the process described above.
-
 ## To go further
 
+- do not send the encoded URL and plaintext URL in the same request, but a salted hash instead
 - add dynamic (i.e., variable) elements to build the passphrase
     - for example, the client may include the timestamp in the headers, then this one is used to compute the passphrase dynamically
 - use [REST-Assured](http://rest-assured.io/) or [Karate DSL](https://intuit.github.io/karate/) to write tests in a more fluent way
@@ -244,11 +227,16 @@ This validates all the process described above.
 
 ## Outcome
 
-This is a way to deal with these security concerns. 
-Hiding endpoints URL this way is a first step to protect your API from some basic attacks.
+Hiding endpoints URL this way is a first step to protect your API from basic attacks.
+But it's not a silver bullet.
 Using pure OOP, I keep things small (single responsibility), cohesive and reusable.
 
 The source code is available [here](https://github.com/RoRoche/OpaqueUrlApi).
+
+## Thanks
+
+- [Adam Bertrand](https://github.com/Hydragyrum) for reviewing and challenging
+- [Matthieu Poignant](https://github.com/DarwinOnLine) for discussing the idea
 
 ## References
 
