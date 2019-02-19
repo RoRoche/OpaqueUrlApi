@@ -1,4 +1,4 @@
-# Opaque URLs API
+# 	Beginner's guide to opaque URLs API
 
 ![Elegant Objects](https://www.elegantobjects.org/badge.svg)
 ![intellij-idea](https://www.elegantobjects.org/intellij-idea.svg)
